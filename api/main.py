@@ -1,10 +1,9 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Any
 import sqlite3
-
 
 class Movie(BaseModel):
     title: str
@@ -13,7 +12,12 @@ class Movie(BaseModel):
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="../ui/build/static", check_dir=False), name="static")
+DB_EXT_PATH = "movies-extended.db"
 
+def get_ext_db():
+    conn = sqlite3.connect(DB_EXT_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 @app.get("/")
 def serve_react_app():
    return FileResponse("../ui/build/index.html")
@@ -80,6 +84,68 @@ def delete_movies(movie_id:int):
     cursor.execute("DELETE FROM movies")
     db.commit()
     return {"message": f"Deleted {cursor.rowcount} movies"}
+
+@app.get("/actors")
+def get_actors():
+    conn = get_ext_db()
+    rows = conn.execute("SELECT * FROM actor").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.get("/actors/{actor_id}")
+def get_actor(actor_id: int):
+    conn = get_ext_db()
+    row = conn.execute("SELECT * FROM actor WHERE id = ?", (actor_id,)).fetchone()
+    conn.close()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Actor not found")
+
+    return dict(row)
+
+
+@app.post("/actors")
+def add_actor(params: dict[str, Any]):
+    conn = get_ext_db()
+    cur = conn.execute(
+        "INSERT INTO actor (name, surname) VALUES (?, ?)",
+        (params.get("name"), params.get("surname"))
+    )
+    conn.commit()
+    actor_id = cur.lastrowid
+    conn.close()
+
+    return {"message": "Actor added", "id": actor_id}
+
+
+@app.put("/actors/{actor_id}")
+def update_actor(actor_id: int, params: dict[str, Any]):
+    conn = get_ext_db()
+    cur = conn.execute(
+        "UPDATE actor SET name = ?, surname = ? WHERE id = ?",
+        (params.get("name"), params.get("surname"), actor_id)
+    )
+    conn.commit()
+    conn.close()
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Actor not found")
+
+    return {"message": "Actor updated"}
+
+
+@app.delete("/actors/{actor_id}")
+def delete_actor(actor_id: int):
+    conn = get_ext_db()
+    cur = conn.execute("DELETE FROM actor WHERE id = ?", (actor_id,))
+    conn.commit()
+    conn.close()
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Actor not found")
+
+    return {"message": "Actor deleted"}
 
 
 # if __name__ == '__main__':
