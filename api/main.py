@@ -8,6 +8,7 @@ import sqlite3
 class Movie(BaseModel):
     title: str
     year: str
+    actors: list[str] = []
 
 app = FastAPI()
 
@@ -18,6 +19,7 @@ def get_ext_db():
     conn = sqlite3.connect(DB_EXT_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
 @app.get("/")
 def serve_react_app():
    return FileResponse("../ui/build/index.html")
@@ -30,8 +32,12 @@ def get_movies():  # put application's code here
 
     output = []
     for movie in movies:
-         movie = {'id': movie[0], 'title': movie[1], 'year': movie[2], 'actors': movie[3]}
-         output.append(movie)
+        movie = {
+            'id': movie[0],
+            'title': movie[1],
+            'year': movie[2],
+            'actors': movie[3].split(", ") if movie[3] else []}
+        output.append(movie)
     return output
 
 @app.get('/movies/{movie_id}')
@@ -47,7 +53,11 @@ def get_single_movie(movie_id:int):  # put application's code here
 def add_movie(movie: Movie):
     db = sqlite3.connect('movies.db')
     cursor = db.cursor()
-    cursor.execute(f"INSERT INTO movies (title, year) VALUES ('{movie.title}', '{movie.year}')")
+    actors_str = ", ".join(movie.actors)
+    cursor.execute(
+        "INSERT INTO movies (title, year, actors) VALUES (?, ?, ?)",
+        (movie.title, movie.year, actors_str)
+    )
     db.commit()
     return {"message": f"Movie with id = {cursor.lastrowid} added successfully",
             "id": cursor.lastrowid}
@@ -55,17 +65,22 @@ def add_movie(movie: Movie):
     # return movie
 
 @app.put("/movies/{movie_id}")
-def update_movie(movie_id:int, params: dict[str, Any]):
+def update_movie(movie_id: int, movie: Movie):
     db = sqlite3.connect('movies.db')
     cursor = db.cursor()
+
+    actors_str = ", ".join(movie.actors)
+
     cursor.execute(
-    "UPDATE movies SET title = ?, year = ?, actors = ? WHERE id = ?",
-    (params['title'], params['year'], params['actors'], movie_id)
+        "UPDATE movies SET title = ?, year = ?, actors = ? WHERE id = ?",
+        (movie.title, movie.year, actors_str, movie_id)
     )
     db.commit()
+
     if cursor.rowcount == 0:
         return {"message": f"Movie with id = {movie_id} not found"}
-    return {"message": f"Movie with id = {cursor.lastrowid} updated successfully"}
+
+    return {"message": "Movie updated"}
 
 @app.delete("/movies/{movie_id}")
 def delete_movie(movie_id:int):

@@ -1,6 +1,7 @@
 import {useState} from "react";
 
 export default function MovieForm(props) {
+    const [actors, setActors] = useState('');
     const [title, setTitle] = useState('');
     const [year, setYear] = useState('');
     const [director, setDirector] = useState('');
@@ -11,11 +12,18 @@ export default function MovieForm(props) {
         if (title.length < 5) {
             return alert('Tytuł jest za krótki');
         }
-        props.onMovieSubmit({title, year, director, description});
+        props.onMovieSubmit({
+            title,
+            year,
+            director,
+            description,
+            actors: actors.split(',').map(a => a.trim()).filter(Boolean)
+            });
         setTitle('');
         setYear('');
         setDirector('');
         setDescription('');
+        setActors('');
     }
 
     return <form onSubmit={addMovie}>
@@ -31,6 +39,15 @@ export default function MovieForm(props) {
         <div>
             <label>Director</label>
             <input type="text" value={director} onChange={(event) => setDirector(event.target.value)}/>
+        </div>
+        <div>
+            <label>Actors (comma separated)</label>
+            <input
+                type="text"
+                value={actors}
+                onChange={(event) => setActors(event.target.value)}
+                placeholder="Keanu Reeves, Carrie-Anne Moss"
+            />
         </div>
         <div>
             <label>Description</label>
